@@ -3,6 +3,7 @@ import {
     chunkLines,
     findMissingChars,
     ingestFiles,
+    parseCharMap,
     type FontSource,
     type IFontDescriptor,
     type IMissingChar,
@@ -21,7 +22,7 @@ import {
     type IRegistrySnapshot,
 } from '../services';
 import { pickValidSettings } from './settings-validation';
-import { DEFAULT_SETTINGS, SETTINGS_STORAGE_KEY } from './viewer.config';
+import { CHAR_MAP_STORAGE_KEY, DEFAULT_SETTINGS, SETTINGS_STORAGE_KEY } from './viewer.config';
 
 export interface ILoadProblem {
     id: number;
@@ -37,9 +38,11 @@ export interface IViewerState {
     settings: IPreviewSettings;
     loading: boolean;
     problems: ILoadProblem[];
+    charMapText: string;
 }
 
 const registry = new FontRegistry();
+const sourcesById = new Map<string, FontSource<IInputFile>>();
 let problemCounter = 0;
 
 export const viewer = reactive<IViewerState>({
@@ -49,7 +52,10 @@ export const viewer = reactive<IViewerState>({
     settings: loadSettings(),
     loading: false,
     problems: [],
+    charMapText: loadCharMapText(),
 });
+
+export const charMap = computed(() => parseCharMap(viewer.charMapText));
 
 export const selectedFont = computed(() => viewer.fonts.find((font) => font.id === viewer.selectedId) ?? null);
 
@@ -65,6 +71,11 @@ watch(
     () => viewer.settings,
     (settings) => writeStoredJson(SETTINGS_STORAGE_KEY, settings),
     { deep: true },
+);
+
+watch(
+    () => viewer.charMapText,
+    (text) => writeStoredJson(CHAR_MAP_STORAGE_KEY, text),
 );
 
 export async function loadInputFiles(files: readonly IInputFile[]): Promise<void> {
@@ -130,6 +141,30 @@ export async function removeFont(id: string): Promise<void> {
 
     await nextTick();
     registry.dispose(id);
+    sourcesById.delete(id);
+}
+
+export async function applyCharMap(text: string): Promise<void> {
+    viewer.charMapText = text;
+
+    if (charMap.value.errors.length > 0) {
+        return;
+    }
+
+    const glyphFontIds = viewer.fonts.filter((font) => font.kind === 'glyphs').map((font) => font.id);
+    viewer.loading = true;
+
+    try {
+        for (const id of glyphFontIds) {
+            const source = sourcesById.get(id);
+
+            if (source) {
+                await loadSource(source);
+            }
+        }
+    } finally {
+        viewer.loading = false;
+    }
 }
 
 export function dismissProblem(id: number): void {
@@ -170,7 +205,7 @@ async function loadSource(source: FontSource<IInputFile>): Promise<string | null
     let descriptor: IFontDescriptor;
 
     try {
-        descriptor = markRaw(await loadFontSource(source, id, resources));
+        descriptor = markRaw(await loadFontSource(source, id, resources, charMap.value.map));
     } catch (error) {
         resources.dispose();
         addProblem(source.dir || source.name, 'error', `${source.name}: ${errorMessage(error)}`);
@@ -179,6 +214,7 @@ async function loadSource(source: FontSource<IInputFile>): Promise<string | null
     }
 
     registry.add(id, resources);
+    sourcesById.set(id, source);
     const previousIndex = viewer.fonts.findIndex((font) => font.key === descriptor.key);
     const previous = viewer.fonts[previousIndex];
 
@@ -200,6 +236,7 @@ async function loadSource(source: FontSource<IInputFile>): Promise<string | null
 
     await nextTick();
     registry.dispose(previous.id);
+    sourcesById.delete(previous.id);
 
     return id;
 }
@@ -218,6 +255,12 @@ function loadSettings(): IPreviewSettings {
     }
 
     return settings;
+}
+
+function loadCharMapText(): string {
+    const stored = readStoredJson(CHAR_MAP_STORAGE_KEY);
+
+    return typeof stored === 'string' ? stored : '';
 }
 
 function errorMessage(error: unknown): string {

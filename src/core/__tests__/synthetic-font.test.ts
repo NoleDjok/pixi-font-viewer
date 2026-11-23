@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { builderFrameKey, sdkCharForFrameKey } from '../glyph-names';
+import { builderFrameKey, parseCharMap, sdkCharForFrameKey } from '../glyph-names';
 import { buildSyntheticFont, orderLikeObjectKeys } from '../synthetic-font';
 
 describe('glyph names', () => {
@@ -10,6 +10,28 @@ describe('glyph names', () => {
         expect(builderFrameKey('K')).toBe('K');
         expect(builderFrameKey('Coma')).toBe('Coma');
         expect(builderFrameKey('constructor')).toBe('constructor');
+    });
+
+    it('applies extra fontCharMap entries of a game on top of the defaults', () => {
+        const extra = { x_small: 'x', m_small: 'm' };
+
+        expect(builderFrameKey('x_small', extra)).toBe('x');
+        expect(builderFrameKey('dot', extra)).toBe('.');
+        expect(builderFrameKey('x_small')).toBe('x_small');
+    });
+
+    it('parses fontCharMap entries pasted from a config or typed as name=char', () => {
+        const pasted = parseCharMap("fontCharMap: {\n    comma: ',',\n    x_small: 'x',\n    m_small: \"m\",\n},");
+
+        expect(pasted.errors).toEqual([]);
+        expect({ ...pasted.map }).toEqual({ comma: ',', x_small: 'x', m_small: 'm' });
+        expect({ ...parseCharMap('x_small=x; space=" "').map }).toEqual({ x_small: 'x', space: ' ' });
+        expect(parseCharMap('').errors).toEqual([]);
+    });
+
+    it('reports char map entries that do not map to one character', () => {
+        expect(parseCharMap('x_small=xx').errors).toEqual(['"x_small" must map to exactly one character, got "xx".']);
+        expect(parseCharMap('just text').errors).toHaveLength(1);
     });
 
     it('maps frame keys the way the fe-sdk loader does', () => {

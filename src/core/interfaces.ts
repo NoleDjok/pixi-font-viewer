@@ -28,6 +28,7 @@ export interface IGlyphImageRef {
 
 export interface IGlyphDescriptor {
     key: string;
+    name: string;
     char: string | null;
     codePoint: number | null;
     width: number;

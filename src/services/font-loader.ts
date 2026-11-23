@@ -42,10 +42,11 @@ export async function loadFontSource(
     source: FontSource<IInputFile>,
     id: string,
     resources: FontResources,
+    charMap: Readonly<Record<string, string>>,
 ): Promise<IFontDescriptor> {
     switch (source.kind) {
         case 'glyphs':
-            return loadGlyphFolder(source, id, resources);
+            return loadGlyphFolder(source, id, resources, charMap);
         case 'atlas':
             return loadAtlas(source, id, resources);
         case 'bmfont':
@@ -59,6 +60,7 @@ async function loadGlyphFolder(
     source: IGlyphFolderSource<IInputFile>,
     id: string,
     resources: FontResources,
+    charMap: Readonly<Record<string, string>>,
 ): Promise<IFontDescriptor> {
     const files = [...source.images].sort((a, b) => compareText(baseName(a.path), baseName(b.path)));
     const loaded = await Promise.all(
@@ -66,7 +68,7 @@ async function loadGlyphFolder(
             const url = resources.createUrl(input.file);
             const fileName = stripExtension(baseName(input.path));
 
-            return { key: builderFrameKey(fileName), fileName, url, image: await loadImage(url, input.path) };
+            return { key: builderFrameKey(fileName, charMap), fileName, url, image: await loadImage(url, input.path) };
         }),
     );
     const ordered = orderLikeObjectKeys(loaded);
@@ -98,7 +100,7 @@ async function loadGlyphFolder(
         ]),
     );
     const glyphs = ordered.map((item) =>
-        syntheticGlyph(item.key, item.image.naturalWidth, item.image.naturalHeight, inks.get(item.key), {
+        syntheticGlyph(item.key, item.fileName, item.image.naturalWidth, item.image.naturalHeight, inks.get(item.key), {
             url: item.url,
             imageWidth: item.image.naturalWidth,
             imageHeight: item.image.naturalHeight,
@@ -165,6 +167,7 @@ async function loadAtlas(
         const ink = frame.rotated ? undefined : measureInk(image, frame.x, frame.y, frame.width, frame.height);
 
         return syntheticGlyph(
+            frame.key,
             frame.key,
             frame.width / variant.scale,
             frame.height / variant.scale,
@@ -256,6 +259,7 @@ async function loadBmFont(
 
         return {
             key: String(char.id),
+            name: String(char.id),
             char: String.fromCodePoint(char.id),
             codePoint: char.id,
             width: char.width,
@@ -377,12 +381,17 @@ function syntheticDescriptor(
         glyphs,
         pages: [],
         kernings: [],
-        issues: [...extraIssues, ...collisionIssues(font.collisions, 'sdk'), ...checkGlyphs(checks, font.referenceKey)],
+        issues: [
+            ...extraIssues,
+            ...collisionIssues(font.collisions, 'sdk'),
+            ...checkGlyphs(checks, font.referenceKey, kind === 'glyphs' ? 'source' : 'atlas'),
+        ],
     };
 }
 
 function syntheticGlyph(
     key: string,
+    name: string,
     width: number,
     height: number,
     ink: IInkResult | undefined,
@@ -392,6 +401,7 @@ function syntheticGlyph(
 
     return {
         key,
+        name,
         char,
         codePoint: char === null ? null : char.charCodeAt(0),
         width,

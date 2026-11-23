@@ -45,7 +45,9 @@ The viewer repeats the game pipeline step by step:
 
 1. **assets-builder** (`@gamzix/assets-builder` 0.2.0) packs the folder without trimming or rotation and renames
    frames with `fontCharMap`: `dot . comma , usd $ eur € space ␠ dash - minus - plus + slash /`. Other names stay as
-   they are, case kept. The 720p atlas is every glyph scaled by 0.75 and rounded to whole pixels.
+   they are, case kept. A game can add its own names in `fontCharMap` of `tools/assets-builder.config.ts`
+   (`3_power_sevens` maps `x_small` to `x` and `m_small` to `m`; on macOS `x.png` and `X.png` cannot share one
+   folder). The 720p atlas is every glyph scaled by 0.75 and rounded to whole pixels.
 2. **fe-sdk** (`BitmapLoaderBehaviour`, same code in hemi-pixi) builds a `BitmapFont` from the frames: one page per
    glyph, `xoffset = yoffset = 0`, `xadvance` = frame width, `size` and `lineHeight` = height of the first frame
    (`Object.keys` order, so digits come first). A frame name longer than one character must be one of
@@ -60,7 +62,8 @@ up or down.
 
 Shown in the font list, on the glyph cards and in the **Problems** tab:
 
-- glyph name without a character (the game crashes on load), e.g. `Coma.png`, `x_big.png`;
+- glyph name without a character: a warning in a glyph folder (fine only if the game's `fontCharMap` maps it),
+  an error in a built atlas (the loader throws on it);
 - two files that end up as the same character (`dash.png` and `minus.png`);
 - glyph heights that differ from the first glyph;
 - digits of different widths (win counters jitter);
@@ -83,6 +86,9 @@ Presets cover win amounts, every glyph of the font, digits and punctuation, Lati
 - **Asset resolution**: 1080p / 720p for glyph folders, every dropped resolution for atlases.
 - **Export PNG** saves the preview; **Copy link with text** puts the sample text into the URL (`?text=`).
 
+**File name mapping** (left panel) takes the game's extra `fontCharMap` entries, typed as `x_small=x, m_small=m` or
+pasted straight from the config, and reloads the glyph folders with them.
+
 Settings are kept in `localStorage`. `?debug=1` exposes `window.fontViewerDebug.snapshot()` with the installed
 fonts, font faces and object URLs (used to check that reloads do not leak).
 
@@ -92,7 +98,8 @@ fonts, font faces and object URLs (used to check that reloads do not leak).
   `mitchell` kernel, so edges can differ slightly. Load the built `_720p` atlas for the exact pixels.
 - For a glyph folder the frame order of the future atlas is not known, files are taken in name order. It only
   matters when glyph heights differ, which the checks already report.
-- A game can override `fontCharMap` in its assets-builder config; the viewer uses the default map.
+- The viewer does not read the game's assets-builder config: extra `fontCharMap` names apply only after they are
+  entered under **File name mapping**.
 - BMFont and web fonts render with plain Pixi, without any engine text component on top.
 
 ## Code map

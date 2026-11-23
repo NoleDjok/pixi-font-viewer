@@ -323,6 +323,12 @@ pre {
     color: var(--error);
 }
 
+.field__error-list {
+    margin: 4px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
 .color-input {
     width: 38px;
     height: 26px;

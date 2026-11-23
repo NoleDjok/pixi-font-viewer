@@ -2,6 +2,7 @@ import { TEXT_PRESETS } from '../core';
 import type { IPreviewSettings } from '../renderer';
 
 export const SETTINGS_STORAGE_KEY = 'font-viewer:settings:v1';
+export const CHAR_MAP_STORAGE_KEY = 'font-viewer:char-map:v1';
 
 export const DEFAULT_SETTINGS: IPreviewSettings = {
     text: TEXT_PRESETS[0]?.text ?? '0123456789',

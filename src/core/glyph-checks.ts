@@ -15,7 +15,13 @@ export interface IGlyphCheckInput {
 const DIGIT = /^[0-9]$/;
 const LETTER = /^\p{L}$/u;
 
-export function checkGlyphs(glyphs: readonly IGlyphCheckInput[], referenceKey: string | null): IIssue[] {
+export type GlyphNameStage = 'source' | 'atlas';
+
+export function checkGlyphs(
+    glyphs: readonly IGlyphCheckInput[],
+    referenceKey: string | null,
+    stage: GlyphNameStage,
+): IIssue[] {
     if (glyphs.length === 0) {
         return [{ level: 'error', message: 'The font has no glyphs.' }];
     }
@@ -23,7 +29,7 @@ export function checkGlyphs(glyphs: readonly IGlyphCheckInput[], referenceKey: s
     const reference = glyphs.find((glyph) => glyph.key === referenceKey) ?? null;
 
     return [
-        ...checkUnmapped(glyphs),
+        ...checkUnmapped(glyphs, stage),
         ...checkHeights(glyphs, reference),
         ...checkDigitWidths(glyphs),
         ...checkBaselines(glyphs, reference),
@@ -51,22 +57,38 @@ export function inkBaseline(glyphs: readonly IGlyphCheckInput[]): number | null 
     return median(pool.flatMap((glyph) => (glyph.ink ? [glyph.height - glyph.ink.bottom] : [])));
 }
 
-function checkUnmapped(glyphs: readonly IGlyphCheckInput[]): IIssue[] {
+function checkUnmapped(glyphs: readonly IGlyphCheckInput[], stage: GlyphNameStage): IIssue[] {
     const unmapped = glyphs.filter((glyph) => glyph.char === null);
 
     if (unmapped.length === 0) {
         return [];
     }
 
+    const names = unmapped.map((glyph) => quote(glyph.key)).join(', ');
+    const glyphKeys = unmapped.map((glyph) => glyph.key);
+
+    if (stage === 'atlas') {
+        return [
+            {
+                level: 'error',
+                message:
+                    `No character for frame ${names}. The game loader knows only one-character names and ` +
+                    `${sdkGlyphNames().join(', ')}, so loading the fonts bundle fails.`,
+                glyphKeys,
+            },
+        ];
+    }
+
     return [
         {
-            level: 'error',
+            level: 'warning',
             message:
-                `No character for ${unmapped.map((glyph) => quote(glyph.key)).join(', ')}. ` +
-                'The game crashes while loading the fonts bundle on such a name. ' +
-                `Name the file after the character itself or use: ${sdkGlyphNames().join(', ')} ` +
-                `(assets-builder also maps ${builderOnlyGlyphNames().join(', ')}).`,
-            glyphKeys: unmapped.map((glyph) => glyph.key),
+                `No character for ${names} in the default assets-builder mapping ` +
+                `(${sdkGlyphNames().join(', ')}, ${builderOnlyGlyphNames().join(', ')}). ` +
+                'It works only if the game maps it in fontCharMap of tools/assets-builder.config.ts, ' +
+                "for example x_small: 'x'; otherwise loading the fonts bundle fails. " +
+                'Add the same entries under "File name mapping" to preview these glyphs.',
+            glyphKeys,
         },
     ];
 }

@@ -105,7 +105,7 @@ function round(value: number): number {
 }
 
 function cardLabel(glyph: IGlyphDescriptor): string {
-    return glyph.char === null ? `${glyph.key}: no character` : `${describeChar(glyph.char)}, ${glyph.key}`;
+    return glyph.char === null ? `${glyph.name}: no character` : `${describeChar(glyph.char)}, ${glyph.name}`;
 }
 </script>
 
@@ -153,20 +153,20 @@ function cardLabel(glyph: IGlyphDescriptor): string {
                             ></span>
                         </span>
                         <span class="glyph-card__char">{{ glyph.char === null ? '?' : describeChar(glyph.char) }}</span>
-                        <span class="glyph-card__meta">{{ glyph.key }}</span>
+                        <span class="glyph-card__meta">{{ glyph.name }}</span>
                         <span class="glyph-card__meta">{{ round(glyph.width) }}×{{ round(glyph.height) }}</span>
                     </button>
                 </li>
             </ul>
             <aside v-if="selected" class="glyph-detail" aria-live="polite">
                 <h3 class="glyph-detail__title">
-                    {{ selected.char === null ? selected.key : describeChar(selected.char) }}
+                    {{ selected.char === null ? selected.name : describeChar(selected.char) }}
                 </h3>
                 <dl class="facts">
                     <dt>Character</dt>
                     <dd>{{ selected.char === null ? 'none' : formatCodePoint(selected.codePoint ?? 0) }}</dd>
                     <dt>Name</dt>
-                    <dd>{{ selected.key }}</dd>
+                    <dd>{{ selected.name }}</dd>
                     <dt>Size</dt>
                     <dd>{{ round(selected.width) }} × {{ round(selected.height) }}</dd>
                     <dt>xadvance</dt>

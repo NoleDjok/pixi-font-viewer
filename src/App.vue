@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { ControlsPanel, FilePickers, FontList, InspectorTabs, PreviewCanvas, ProblemList } from './components';
+import {
+    CharMapField,
+    ControlsPanel,
+    FilePickers,
+    FontList,
+    InspectorTabs,
+    PreviewCanvas,
+    ProblemList,
+} from './components';
 import { filesFromDataTransfer } from './services';
 import { loadInputFiles, selectedFont } from './store';
 
@@ -52,6 +60,7 @@ async function exportPng(): Promise<void> {
         <aside class="app__fonts" aria-label="Fonts">
             <FontList />
             <ProblemList />
+            <CharMapField />
         </aside>
         <main class="app__workspace">
             <PreviewCanvas ref="preview" />

@@ -10,7 +10,7 @@ const DIGITS = '0123456789'.split('').map((digit) => glyph(digit, digit, 120, 17
 
 describe('checkGlyphs', () => {
     it('finds nothing wrong in a clean digits font apart from the missing space', () => {
-        const issues = checkGlyphs([...DIGITS, glyph('dot', '.', 66, 175)], '0');
+        const issues = checkGlyphs([...DIGITS, glyph('dot', '.', 66, 175)], '0', 'source');
 
         expect(issues.map((issue) => issue.level)).toEqual(['info']);
     });
@@ -26,6 +26,7 @@ describe('checkGlyphs', () => {
                 { key: 'comma', char: ',', width: 50, height: 175, ink: null, empty: true },
             ],
             '0',
+            'source',
         );
         const byText = (text: string): string[] =>
             issues.find((issue) => issue.message.includes(text))?.glyphKeys ?? ['<not reported>'];
@@ -38,9 +39,18 @@ describe('checkGlyphs', () => {
     });
 
     it('notes mixed letter case', () => {
-        const issues = checkGlyphs([...DIGITS, glyph('K', 'K', 120, 175), glyph('m', 'm', 120, 175)], '0');
+        const issues = checkGlyphs([...DIGITS, glyph('K', 'K', 120, 175), glyph('m', 'm', 120, 175)], '0', 'source');
 
         expect(issues.some((issue) => issue.message.includes('case-sensitive'))).toBe(true);
+    });
+
+    it('treats an unknown name as a warning in a source folder and as an error in a built atlas', () => {
+        const glyphs = [...DIGITS, glyph('x_small', null, 120, 175)];
+        const unmapped = (stage: 'source' | 'atlas'): string | undefined =>
+            checkGlyphs(glyphs, '0', stage).find((issue) => issue.glyphKeys?.includes('x_small'))?.level;
+
+        expect(unmapped('source')).toBe('warning');
+        expect(unmapped('atlas')).toBe('error');
     });
 
     it('computes the ink baseline from the digits', () => {

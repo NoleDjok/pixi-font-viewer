@@ -1,3 +1,4 @@
+export { default as CharMapField } from './CharMapField.vue';
 export { default as ControlsPanel } from './ControlsPanel.vue';
 export { default as FilePickers } from './FilePickers.vue';
 export { default as FontList } from './FontList.vue';
