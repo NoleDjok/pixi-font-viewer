@@ -11,8 +11,10 @@ export const MAX_KERNING_ROWS = 300;
 
 export const LOUPE = {
     zooms: [1, 2, 4, 8, 16],
-    maxStartHeight: 450,
+    pixelZoom: 2,
 };
+
+export const LOUPE_FIT = 'fit';
 
 export const LOUPE_PALETTE: IAlphaPalette = {
     faint: [79, 195, 247],

@@ -87,7 +87,7 @@ Presets cover win amounts, every glyph of the font, digits and punctuation, Lati
 - **Preview**: hover a glyph to see its character, code point and size. Guides: text box and width limits, line
   height, baseline (BMFont `base`, or the bottom edge of `1 2 4 7` for glyph fonts), glyph boxes.
 - **Glyphs** tab: every glyph at the same scale with its canvas, ink bounds and baseline; click one for its numbers
-  and a pixel loupe (1–16×, no smoothing). The loupe's **Alpha** view paints opaque pixels grey, semi-transparent ones
+  and a pixel loupe (Fit, then 1–16× without smoothing; drag the image to move around). The loupe's **Alpha** view paints opaque pixels grey, semi-transparent ones
   magenta and almost invisible ones (alpha ≤ 3%) blue, so soft edges, halos and stray pixels stand out.
 - **Atlas** tab (atlas and BMFont): the page with glyph rectangles; hover for `x y w h`, offsets and advance.
 - **Metrics** tab: size, line height, base, pages, resolutions, kerning pairs.

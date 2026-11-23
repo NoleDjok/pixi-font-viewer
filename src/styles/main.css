@@ -846,14 +846,30 @@ pre {
 }
 
 .loupe__viewport {
-    max-height: 320px;
+    height: 320px;
     overflow: auto;
     border: 1px solid var(--border);
     border-radius: var(--radius);
+    user-select: none;
+}
+
+.loupe__viewport--pannable {
+    cursor: grab;
+}
+
+.loupe__viewport--dragging {
+    cursor: grabbing;
+}
+
+.loupe__hint {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 11px;
 }
 
 .loupe__stage {
     position: relative;
+    margin: auto;
 }
 
 .loupe__canvas {
