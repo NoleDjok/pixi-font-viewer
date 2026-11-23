@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { builderFrameKey, parseCharMap, sdkCharForFrameKey } from '../glyph-names';
+import { builderFrameKey, builderGlyphNames, parseCharMap, sdkCharForFrameKey, suggestGlyphName } from '../glyph-names';
 import { buildSyntheticFont, orderLikeObjectKeys } from '../synthetic-font';
 
 describe('glyph names', () => {
@@ -32,6 +32,18 @@ describe('glyph names', () => {
     it('reports char map entries that do not map to one character', () => {
         expect(parseCharMap('x_small=xx').errors).toEqual(['"x_small" must map to exactly one character, got "xx".']);
         expect(parseCharMap('just text').errors).toHaveLength(1);
+    });
+
+    it('suggests a known name for a typo and the character for a variant name', () => {
+        const known = builderGlyphNames();
+
+        expect(suggestGlyphName('coma', known)).toEqual({ kind: 'name', value: 'comma' });
+        expect(suggestGlyphName('Coma', known)).toEqual({ kind: 'name', value: 'comma' });
+        expect(suggestGlyphName('dott', known)).toEqual({ kind: 'name', value: 'dot' });
+        expect(suggestGlyphName('plsu', known)).toEqual({ kind: 'name', value: 'plus' });
+        expect(suggestGlyphName('x_small', known)).toEqual({ kind: 'char', value: 'x' });
+        expect(suggestGlyphName('x_big', known)).toEqual({ kind: 'char', value: 'x' });
+        expect(suggestGlyphName('percent', known)).toBeNull();
     });
 
     it('maps frame keys the way the fe-sdk loader does', () => {

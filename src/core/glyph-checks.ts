@@ -6,7 +6,7 @@ import {
     MIN_OVERSHOOT_RATIO,
     ROUND_BOTTOM_DIGITS,
 } from './constants';
-import { builderOnlyGlyphNames, sdkGlyphNames } from './glyph-names';
+import { builderGlyphNames, sdkGlyphNames, suggestGlyphName } from './glyph-names';
 import type { IInkBox, IIssue } from './interfaces';
 import type { ICharCollision } from './synthetic-font';
 
@@ -27,6 +27,8 @@ interface IMeasuredDigit {
 
 const DIGIT = /^[0-9]$/;
 const LETTER = /^\p{L}$/u;
+const FLAT_LIST = FLAT_BOTTOM_DIGITS.join(' ');
+const ROUND_LIST = ROUND_BOTTOM_DIGITS.join(' ');
 
 export type GlyphNameStage = 'source' | 'atlas';
 
@@ -36,13 +38,13 @@ export function checkGlyphs(
     stage: GlyphNameStage,
 ): IIssue[] {
     if (glyphs.length === 0) {
-        return [{ level: 'error', message: 'The font has no glyphs.' }];
+        return [{ code: 'no-glyphs', level: 'error', message: 'The font has no glyphs.' }];
     }
 
     const reference = glyphs.find((glyph) => glyph.key === referenceKey) ?? null;
 
     return [
-        ...checkUnmapped(glyphs, stage),
+        ...checkUnknownNames(glyphs, stage),
         ...checkHeights(glyphs, reference),
         ...checkDigitWidths(glyphs),
         ...checkDigitAlignment(glyphs, reference),
@@ -54,11 +56,15 @@ export function checkGlyphs(
 
 export function collisionIssues(collisions: readonly ICharCollision[], stage: 'builder' | 'sdk'): IIssue[] {
     return collisions.map((collision) => ({
+        code: 'duplicate',
         level: 'warning',
         message:
             stage === 'builder'
-                ? `Files ${collision.keys.map(quote).join(', ')} all become "${collision.char}" in the atlas; assets-builder keeps only one of them.`
-                : `Glyphs ${collision.keys.map(quote).join(', ')} are all "${collision.char}"; the game uses "${collision.usedKey}".`,
+                ? `Several files turn into the same character "${collision.char}": ${list(collision.keys)}. ` +
+                  'Only one of them gets into the game.'
+                : `Several frames are the same character "${collision.char}": ${list(collision.keys)}. ` +
+                  `The game shows "${collision.usedKey}".`,
+        fix: 'Keep one file per character.',
         glyphKeys: collision.keys,
     }));
 }
@@ -104,40 +110,57 @@ export function digitBaselineOffsets(glyphs: readonly IGlyphCheckInput[]): Map<s
     return offsets;
 }
 
-function checkUnmapped(glyphs: readonly IGlyphCheckInput[], stage: GlyphNameStage): IIssue[] {
-    const unmapped = glyphs.filter((glyph) => glyph.char === null);
+function checkUnknownNames(glyphs: readonly IGlyphCheckInput[], stage: GlyphNameStage): IIssue[] {
+    const unknown = glyphs.filter((glyph) => glyph.char === null);
 
-    if (unmapped.length === 0) {
+    if (unknown.length === 0) {
         return [];
     }
 
-    const names = unmapped.map((glyph) => quote(glyph.key)).join(', ');
-    const glyphKeys = unmapped.map((glyph) => glyph.key);
+    const knownNames = stage === 'source' ? builderGlyphNames() : sdkGlyphNames();
+    const details = unknown.map((glyph) => describeUnknownName(glyph.key, knownNames));
+    const glyphKeys = unknown.map((glyph) => glyph.key);
 
     if (stage === 'atlas') {
         return [
             {
+                code: 'unknown-name',
                 level: 'error',
-                message:
-                    `No character for frame ${names}. The game loader knows only one-character names and ` +
-                    `${sdkGlyphNames().join(', ')}, so loading the fonts bundle fails.`,
+                message: `The game doesn't know which character these atlas frames are: ${list(glyphKeys)}. It can't load its fonts with them.`,
+                fix: 'Rebuild the atlas from correctly named glyph files.',
                 glyphKeys,
+                details,
             },
         ];
     }
 
     return [
         {
+            code: 'unknown-name',
             level: 'warning',
-            message:
-                `No character for ${names} in the default assets-builder mapping ` +
-                `(${sdkGlyphNames().join(', ')}, ${builderOnlyGlyphNames().join(', ')}). ` +
-                'It works only if the game maps it in fontCharMap of tools/assets-builder.config.ts, ' +
-                "for example x_small: 'x'; otherwise loading the fonts bundle fails. " +
-                'Add the same entries under "File name mapping" to preview these glyphs.',
+            message: `The game doesn't know which character ${unknown.length === 1 ? 'this file is' : 'these files are'}: ${list(glyphKeys)}.`,
+            fix:
+                `Name the file after its character (5.png, k.png) or use one of: ${knownNames.join(', ')}. ` +
+                'If developers taught the game this name (3 Power Sevens knows x_small and m_small), type it under ' +
+                '"File name mapping" on the left to preview it. Otherwise the game cannot load its fonts.',
             glyphKeys,
+            details,
         },
     ];
+}
+
+function describeUnknownName(name: string, knownNames: readonly string[]): string {
+    const suggestion = suggestGlyphName(name, knownNames);
+
+    if (suggestion?.kind === 'name') {
+        return `${name}: did you mean "${suggestion.value}"?`;
+    }
+
+    if (suggestion?.kind === 'char') {
+        return `${name}: probably the character "${suggestion.value}"`;
+    }
+
+    return `${name}: unknown name`;
 }
 
 function checkHeights(glyphs: readonly IGlyphCheckInput[], reference: IGlyphCheckInput | null): IIssue[] {
@@ -153,13 +176,14 @@ function checkHeights(glyphs: readonly IGlyphCheckInput[], reference: IGlyphChec
 
     return [
         {
+            code: 'heights',
             level: 'warning',
             message:
-                `Glyph heights differ. The game takes the font size and line height from the first glyph ` +
-                `${quote(reference.key)} (${reference.height}px) and aligns every glyph by its top edge, ` +
-                'so a glyph with a different canvas height sits off the line.',
+                'Not all glyph images are the same height. The game lines glyphs up by the top edge of the image, ' +
+                'so a glyph in a shorter or taller image sits higher or lower than the rest.',
+            fix: `Export every glyph with the same image height as "${reference.key}" (${reference.height}px).`,
             glyphKeys: different.map((glyph) => glyph.key),
-            details: different.map((glyph) => `${glyph.key}: ${glyph.height}px`),
+            details: different.map((glyph) => `${glyph.key}: ${glyph.height}px instead of ${reference.height}px`),
         },
     ];
 }
@@ -177,10 +201,12 @@ function checkDigitWidths(glyphs: readonly IGlyphCheckInput[]): IIssue[] {
 
     return [
         {
+            code: 'digit-widths',
             level: 'warning',
-            message: `Digits have different widths (most are ${common}px). Win counters shift sideways while the value changes.`,
+            message: 'Digits are not the same width, so a win amount that counts up shifts left and right.',
+            fix: `Give every digit the same image width (${common}px) and centre the digit inside it.`,
             glyphKeys: different.map((glyph) => glyph.key),
-            details: different.map((glyph) => `${glyph.key}: ${glyph.width}px`),
+            details: different.map((glyph) => `${glyph.key}: ${glyph.width}px instead of ${common}px`),
         },
     ];
 }
@@ -231,10 +257,13 @@ function checkDigitAlignment(glyphs: readonly IGlyphCheckInput[], reference: IGl
 
     if (outliers.length > 0) {
         issues.push({
+            code: 'digit-alignment',
             level: 'warning',
-            message:
-                `Digits off their line: the bottom edge is more than ${tolerance}px away from the other digits ` +
-                'with the same bottom shape (flat 1 2 4 7, round 0 3 5 6 8 9).',
+            message: 'Some digits stand higher or lower than the others.',
+            fix:
+                'Move the digit up or down inside its image until its bottom edge matches the others ' +
+                `(more than ${tolerance}px off is visible). Digits with a flat bottom (${FLAT_LIST}) are compared ` +
+                `with each other, round ones (${ROUND_LIST}) with each other.`,
             glyphKeys: outliers.map((digit) => digit.key),
             details: outlierDetails,
         });
@@ -242,8 +271,10 @@ function checkDigitAlignment(glyphs: readonly IGlyphCheckInput[], reference: IGl
 
     if (crossed.length > 0) {
         issues.push({
+            code: 'digit-shape',
             level: 'info',
-            message: 'A digit ends on the line of the other bottom shape. Fine if its bottom is shaped that way.',
+            message: 'A digit ends on the line of the digits with the other bottom shape.',
+            fix: `Fine if its bottom is shaped like theirs. Otherwise move it to the line of its own group.`,
             glyphKeys: crossed.map((digit) => digit.key),
             details: crossedDetails,
         });
@@ -267,9 +298,10 @@ function checkOvershoot(
     if (overshoot < -tolerance) {
         return [
             {
+                code: 'round-higher',
                 level: 'warning',
-                message: `Round digits 0 3 5 6 8 9 stand ${-overshoot}px higher than flat digits 1 2 4 7.`,
-                details: [`flat digits end at ${flatLine}px, round digits at ${roundLine}px from the top`],
+                message: `Round digits ${ROUND_LIST} stand ${-overshoot}px higher than flat digits ${FLAT_LIST}.`,
+                fix: 'Move the round digits down to the line of the flat ones or slightly below it.',
             },
         ];
     }
@@ -280,12 +312,14 @@ function checkOvershoot(
 
     return [
         {
+            code: 'overshoot',
             level: 'info',
             message:
-                `Round digits 0 3 5 6 8 9 end on the same line as flat digits 1 2 4 7 (${flatLine}px from the top). ` +
-                'That is exact, but a round bottom touches the line in one point, so 1 2 4 7 can look a little lower ' +
-                `next to them. Fonts usually let round digits go 1–2% of the height below the line ` +
-                `(${Math.round(height * 0.01)}–${Math.round(height * 0.02)}px here).`,
+                `Flat digits ${FLAT_LIST} may look a little lower than round ones ${ROUND_LIST}. They end on exactly ` +
+                'the same line, but a round bottom touches it in one point only, so it looks higher.',
+            fix:
+                `If it bothers you, move the round digits ${Math.round(height * 0.01)}–${Math.round(height * 0.02)}px ` +
+                'lower (1–2% of the height), as many fonts do. Otherwise leave it.',
         },
     ];
 }
@@ -313,8 +347,10 @@ function checkEmpty(glyphs: readonly IGlyphCheckInput[]): IIssue[] {
 
     return [
         {
+            code: 'empty',
             level: 'warning',
-            message: `Fully transparent glyph(s): ${empty.map((glyph) => quote(glyph.key)).join(', ')}.`,
+            message: `These glyph images are completely transparent: ${list(empty.map((glyph) => glyph.key))}.`,
+            fix: 'Check the export: only a space may be empty.',
             glyphKeys: empty.map((glyph) => glyph.key),
         },
     ];
@@ -331,10 +367,12 @@ function checkLetterCase(glyphs: readonly IGlyphCheckInput[]): IIssue[] {
 
     return [
         {
+            code: 'letter-case',
             level: 'info',
             message:
-                `Letters are case-sensitive: the font has uppercase ${upper.join(' ')} and lowercase ${lower.join(' ')}. ` +
-                'The game text must use the same case, "10K" needs a "K" glyph and "10k" needs a "k" glyph.',
+                'Uppercase and lowercase letters are different characters for the game. ' +
+                `This font has uppercase ${upper.join(' ')} and lowercase ${lower.join(' ')}.`,
+            fix: 'Make sure the game text uses the same case: "10K" needs K.png, "10k" needs k.png.',
         },
     ];
 }
@@ -346,8 +384,10 @@ function checkSpace(glyphs: readonly IGlyphCheckInput[]): IIssue[] {
 
     return [
         {
+            code: 'no-space',
             level: 'info',
-            message: 'No space glyph: spaces in the text take no room, "1 000" renders as "1000".',
+            message: 'There is no space glyph, so a space in the text is skipped: "1 000" shows as "1000".',
+            fix: 'Add space.png (a transparent image as wide as the gap) if the game shows numbers with spaces. Otherwise ignore this.',
         },
     ];
 }
@@ -379,6 +419,6 @@ function mostCommon(values: readonly number[]): number {
     return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]?.[0] ?? 0;
 }
 
-function quote(value: string): string {
-    return `"${value}"`;
+function list(names: readonly string[]): string {
+    return names.map((name) => `"${name}"`).join(', ');
 }

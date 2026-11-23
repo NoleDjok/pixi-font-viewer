@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { clearProblems, dismissProblem, viewer } from '../store';
+import { LEVEL_LABELS } from './components.config';
 </script>
 
 <template>
@@ -15,7 +16,7 @@ import { clearProblems, dismissProblem, viewer } from '../store';
                 class="problem"
                 :class="`problem--${problem.level}`"
             >
-                <span class="problem__level">{{ problem.level }}</span>
+                <span class="problem__level">{{ LEVEL_LABELS[problem.level] }}</span>
                 <span class="problem__body">
                     <span v-if="problem.path" class="problem__path">{{ problem.path }}</span>
                     {{ problem.message }}

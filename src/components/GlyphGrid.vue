@@ -55,11 +55,12 @@ const selectedNotes = computed(() => {
 
     return props.font.issues
         .filter((issue) => issue.glyphKeys?.includes(glyph.key))
-        .map((issue) => {
-            const detail = issue.details?.find((line) => line.startsWith(`${glyph.key}:`));
-
-            return { level: issue.level, text: detail ? `${issue.message} (${detail})` : issue.message };
-        });
+        .map((issue) => ({
+            level: issue.level,
+            message: issue.message,
+            detail: issue.details?.find((line) => line.startsWith(`${glyph.key}:`)) ?? null,
+            fix: issue.fix ?? null,
+        }));
 });
 
 function thumbStyle(glyph: IGlyphDescriptor): Record<string, string> {
@@ -236,7 +237,9 @@ function cardLabel(glyph: IGlyphDescriptor): string {
                         :key="index"
                         :class="`notes__item notes__item--${note.level}`"
                     >
-                        {{ note.text }}
+                        <p class="notes__message">{{ note.message }}</p>
+                        <p v-if="note.detail" class="notes__detail">{{ note.detail }}</p>
+                        <p v-if="note.fix" class="notes__fix"><strong>What to do:</strong> {{ note.fix }}</p>
                     </li>
                 </ul>
                 <button

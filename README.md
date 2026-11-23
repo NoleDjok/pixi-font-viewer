@@ -60,7 +60,8 @@ up or down.
 
 ## Checks
 
-Shown in the font list, on the glyph cards and in the **Problems** tab:
+Shown in the font list, on the glyph cards and in the **Problems** tab, in plain words with a **What to do** line for
+artists. An unknown file name gets a hint: `coma` → did you mean `comma`, `x_small` → probably the character `x`.
 
 - glyph name without a character: a warning in a glyph folder (fine only if the game's `fontCharMap` maps it),
   an error in a built atlas (the loader throws on it);

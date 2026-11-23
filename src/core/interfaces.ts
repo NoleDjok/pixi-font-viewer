@@ -1,8 +1,27 @@
 export type IssueLevel = 'error' | 'warning' | 'info';
 
+export type IssueCode =
+    | 'no-glyphs'
+    | 'unknown-name'
+    | 'duplicate'
+    | 'heights'
+    | 'digit-widths'
+    | 'digit-alignment'
+    | 'digit-shape'
+    | 'round-higher'
+    | 'overshoot'
+    | 'empty'
+    | 'letter-case'
+    | 'no-space'
+    | 'packed-frames'
+    | 'descriptor'
+    | 'missing-page';
+
 export interface IIssue {
+    code: IssueCode;
     level: IssueLevel;
     message: string;
+    fix?: string;
     glyphKeys?: string[];
     details?: string[];
 }

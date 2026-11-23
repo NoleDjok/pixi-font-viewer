@@ -839,6 +839,25 @@ pre {
     padding-left: 16px;
 }
 
+.notes__item {
+    margin-bottom: 8px;
+}
+
+.notes__message,
+.notes__detail,
+.notes__fix {
+    margin: 0 0 2px;
+}
+
+.notes__detail {
+    font-family: var(--font-mono);
+    font-size: 12px;
+}
+
+.notes__fix {
+    color: var(--text);
+}
+
 .notes__item--error {
     color: var(--error);
 }
@@ -938,6 +957,10 @@ pre {
 
 .issue__details {
     padding-left: 16px;
+}
+
+.issue__fix {
+    margin: 6px 0 0;
 }
 
 .metrics__note {

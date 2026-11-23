@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { findMissingChars, formatCodePoint, splitByCoverage } from '../coverage';
 import { checkGlyphs, digitBaselineOffsets, inkBaseline, type IGlyphCheckInput } from '../glyph-checks';
+import type { IssueCode } from '../interfaces';
 
 function glyph(key: string, char: string | null, width: number, height: number, bottom = 10): IGlyphCheckInput {
     return { key, char, width, height, ink: { left: 2, top: 10, right: 2, bottom, solidBottom: bottom }, empty: false };
@@ -21,9 +22,11 @@ function measured(height: number, bottoms: Record<string, number>): IGlyphCheckI
     });
 }
 
+const ALIGNMENT_CODES: readonly IssueCode[] = ['digit-alignment', 'digit-shape', 'round-higher', 'overshoot'];
+
 function alignmentIssues(glyphs: IGlyphCheckInput[]): { level: string; glyphKeys?: string[]; details?: string[] }[] {
     return checkGlyphs(glyphs, '0', 'source')
-        .filter((issue) => /Digits off|Round digits|A digit ends/.test(issue.message))
+        .filter((issue) => ALIGNMENT_CODES.includes(issue.code))
         .map(({ level, glyphKeys, details }) => ({ level, glyphKeys, details }));
 }
 
@@ -33,7 +36,7 @@ describe('checkGlyphs', () => {
     it('finds nothing wrong in a clean digits font apart from the missing space', () => {
         const issues = checkGlyphs([...DIGITS, glyph('dot', '.', 66, 175)], '0', 'source');
 
-        expect(issues.map((issue) => issue.level)).toEqual(['info', 'info']);
+        expect(issues.map((issue) => issue.code)).toEqual(['overshoot', 'no-space']);
     });
 
     it('flags unmapped names, height and width differences, baselines and empty glyphs', () => {
@@ -49,20 +52,37 @@ describe('checkGlyphs', () => {
             '0',
             'source',
         );
-        const byText = (text: string): string[] =>
-            issues.find((issue) => issue.message.includes(text))?.glyphKeys ?? ['<not reported>'];
+        const byCode = (code: IssueCode): string[] =>
+            issues.find((issue) => issue.code === code)?.glyphKeys ?? ['<not reported>'];
 
-        expect(byText('No character')).toEqual(['x_big']);
-        expect(byText('heights differ')).toEqual(['m']);
-        expect(byText('different widths')).toEqual(['8']);
-        expect(byText('off their line')).toEqual(['9']);
-        expect(byText('transparent')).toEqual(['comma']);
+        expect(byCode('unknown-name')).toEqual(['x_big']);
+        expect(byCode('heights')).toEqual(['m']);
+        expect(byCode('digit-widths')).toEqual(['8']);
+        expect(byCode('digit-alignment')).toEqual(['9']);
+        expect(byCode('empty')).toEqual(['comma']);
     });
 
     it('notes mixed letter case', () => {
         const issues = checkGlyphs([...DIGITS, glyph('K', 'K', 120, 175), glyph('m', 'm', 120, 175)], '0', 'source');
 
-        expect(issues.some((issue) => issue.message.includes('case-sensitive'))).toBe(true);
+        expect(issues.some((issue) => issue.code === 'letter-case')).toBe(true);
+    });
+
+    it('suggests what an unknown file name probably means', () => {
+        const glyphs = [
+            ...DIGITS,
+            glyph('coma', null, 50, 175),
+            glyph('m_small', null, 120, 175),
+            glyph('percent', null, 120, 175),
+        ];
+        const issue = checkGlyphs(glyphs, '0', 'source').find((item) => item.code === 'unknown-name');
+
+        expect(issue?.details).toEqual([
+            'coma: did you mean "comma"?',
+            'm_small: probably the character "m"',
+            'percent: unknown name',
+        ]);
+        expect(issue?.fix).toContain('File name mapping');
     });
 
     it('treats an unknown name as a warning in a source folder and as an error in a built atlas', () => {
@@ -107,9 +127,7 @@ describe('checkGlyphs', () => {
         const issues = alignmentIssues(sevens);
 
         expect(issues.map((issue) => issue.level)).toEqual(['info']);
-        expect(checkGlyphs(sevens, '0', 'source').find((issue) => issue.level === 'info')?.message).toContain(
-            '1 2 4 7 can look a little lower',
-        );
+        expect(checkGlyphs(sevens, '0', 'source').find((issue) => issue.code === 'overshoot')?.fix).toContain('2–3px');
     });
 
     it('names each digit that stands off its line (green-and-mean numbers)', () => {

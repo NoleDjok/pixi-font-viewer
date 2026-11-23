@@ -7,6 +7,12 @@ export const GLYPH_GRID = {
 
 export const MAX_KERNING_ROWS = 300;
 
+export const LEVEL_LABELS = {
+    error: 'Must fix',
+    warning: 'Check',
+    info: 'Note',
+};
+
 export const LEVEL_ORDER = {
     error: 0,
     warning: 1,

@@ -189,10 +189,12 @@ async function loadAtlas(
             ? []
             : [
                   {
+                      code: 'packed-frames',
                       level: 'error',
                       message:
-                          'Trimmed or rotated frames: the game ignores trim offsets and rotation for font glyphs, ' +
-                          'so these glyphs are drawn shifted or turned. Pack fonts without trimming and rotation.',
+                          'Some glyphs in the atlas are trimmed or rotated. The game ignores that for fonts, ' +
+                          'so these glyphs show up shifted or turned.',
+                      fix: 'Pack fonts without trimming and rotation.',
                       glyphKeys: packed,
                   },
               ];
@@ -247,11 +249,15 @@ async function loadBmFont(
     const textures = pages.map((page) => new Texture(new BaseTexture(page.image)));
     resources.addBitmapFont(name, new BitmapFont(data, textures, true));
 
-    const issues: IIssue[] = font.warnings.map((message) => ({ level: 'warning', message }));
+    const issues: IIssue[] = font.warnings.map((message) => ({ code: 'descriptor', level: 'warning', message }));
     const lost = font.chars.length - usable.length;
 
     if (lost > 0) {
-        issues.push({ level: 'error', message: `${lost} glyph(s) point to a page that the descriptor does not list.` });
+        issues.push({
+            code: 'missing-page',
+            level: 'error',
+            message: `${lost} glyph(s) point to a page that the descriptor does not list, so they are not shown.`,
+        });
     }
 
     const glyphs = usable.map((char): IGlyphDescriptor => {

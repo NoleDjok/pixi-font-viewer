@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { IFontDescriptor } from '../core';
-import { LEVEL_ORDER } from './components.config';
+import { LEVEL_LABELS, LEVEL_ORDER } from './components.config';
 
 const props = defineProps<{ font: IFontDescriptor }>();
 
@@ -13,7 +13,7 @@ const issues = computed(() => [...props.font.issues].sort((a, b) => LEVEL_ORDER[
         <p v-if="issues.length === 0" class="coverage__ok">No problems found.</p>
         <ul v-else class="issue-list">
             <li v-for="(issue, index) in issues" :key="index" class="issue" :class="`issue--${issue.level}`">
-                <span class="issue__level">{{ issue.level }}</span>
+                <span class="issue__level">{{ LEVEL_LABELS[issue.level] }}</span>
                 <div class="issue__body">
                     <p class="issue__message">{{ issue.message }}</p>
                     <ul v-if="issue.details?.length" class="issue__details">
@@ -22,6 +22,7 @@ const issues = computed(() => [...props.font.issues].sort((a, b) => LEVEL_ORDER[
                     <p v-else-if="issue.glyphKeys?.length" class="issue__glyphs">
                         Glyphs: {{ issue.glyphKeys.join(', ') }}
                     </p>
+                    <p v-if="issue.fix" class="issue__fix"><strong>What to do:</strong> {{ issue.fix }}</p>
                 </div>
             </li>
         </ul>
