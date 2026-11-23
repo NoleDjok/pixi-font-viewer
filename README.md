@@ -67,7 +67,10 @@ Shown in the font list, on the glyph cards and in the **Problems** tab:
 - two files that end up as the same character (`dash.png` and `minus.png`);
 - glyph heights that differ from the first glyph;
 - digits of different widths (win counters jitter);
-- digits standing on different baselines (more than 4% of the height apart);
+- digit alignment, measured on the solid edge (alpha > 128, so soft shadows do not count): flat-bottomed digits
+  `1 2 4 7` and round-bottomed `0 3 5 6 8 9` are compared within their group, and a digit more than 1% of the height
+  away gets a warning with its offset in pixels. If round digits do not go below the flat ones, an info note explains
+  why `1 2 4 7` can look lower (no optical overshoot). Every digit card shows its offset from the `1 2 4 7` line;
 - fully transparent glyphs, trimmed or rotated atlas frames;
 - mixed letter case (`K` and `m`) and a missing space glyph.
 
@@ -78,7 +81,7 @@ Presets cover win amounts, every glyph of the font, digits and punctuation, Lati
 ## Inspecting
 
 - **Preview**: hover a glyph to see its character, code point and size. Guides: text box and width limits, line
-  height, baseline (BMFont `base`, or the common bottom of the digit ink for glyph fonts), glyph boxes.
+  height, baseline (BMFont `base`, or the bottom edge of `1 2 4 7` for glyph fonts), glyph boxes.
 - **Glyphs** tab: every glyph at the same scale with its canvas, ink bounds and baseline; click one for its numbers.
 - **Atlas** tab (atlas and BMFont): the page with glyph rectangles; hover for `x y w h`, offsets and advance.
 - **Metrics** tab: size, line height, base, pages, resolutions, kerning pairs.

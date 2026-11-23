@@ -14,6 +14,7 @@ export interface IInkBox {
     top: number;
     right: number;
     bottom: number;
+    solidBottom: number;
 }
 
 export interface IGlyphImageRef {

@@ -55,5 +55,10 @@ export const FONT_KIND_LABELS: Readonly<Record<FontKind, string>> = {
 };
 
 export const INK_ALPHA_THRESHOLD = 8;
-export const BASELINE_TOLERANCE_RATIO = 0.04;
+export const SOLID_ALPHA_THRESHOLD = 128;
+export const BASELINE_TOLERANCE_RATIO = 0.01;
 export const MIN_BASELINE_TOLERANCE_PX = 1;
+export const MIN_OVERSHOOT_RATIO = 0.005;
+export const MIN_DIGITS_IN_GROUP = 3;
+export const FLAT_BOTTOM_DIGITS: readonly string[] = ['1', '2', '4', '7'];
+export const ROUND_BOTTOM_DIGITS: readonly string[] = ['0', '3', '5', '6', '8', '9'];

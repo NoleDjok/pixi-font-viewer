@@ -1,9 +1,30 @@
 import { describe, expect, it } from 'vitest';
 import { findMissingChars, formatCodePoint, splitByCoverage } from '../coverage';
-import { checkGlyphs, inkBaseline, type IGlyphCheckInput } from '../glyph-checks';
+import { checkGlyphs, digitBaselineOffsets, inkBaseline, type IGlyphCheckInput } from '../glyph-checks';
 
 function glyph(key: string, char: string | null, width: number, height: number, bottom = 10): IGlyphCheckInput {
-    return { key, char, width, height, ink: { left: 2, top: 10, right: 2, bottom }, empty: false };
+    return { key, char, width, height, ink: { left: 2, top: 10, right: 2, bottom, solidBottom: bottom }, empty: false };
+}
+
+function measured(height: number, bottoms: Record<string, number>): IGlyphCheckInput[] {
+    return Object.entries(bottoms).map(([digit, bottom]) => {
+        const margin = height - 1 - bottom;
+
+        return {
+            key: digit,
+            char: digit,
+            width: 100,
+            height,
+            ink: { left: 0, top: 0, right: 0, bottom: margin, solidBottom: margin },
+            empty: false,
+        };
+    });
+}
+
+function alignmentIssues(glyphs: IGlyphCheckInput[]): { level: string; glyphKeys?: string[]; details?: string[] }[] {
+    return checkGlyphs(glyphs, '0', 'source')
+        .filter((issue) => /Digits off|Round digits|A digit ends/.test(issue.message))
+        .map(({ level, glyphKeys, details }) => ({ level, glyphKeys, details }));
 }
 
 const DIGITS = '0123456789'.split('').map((digit) => glyph(digit, digit, 120, 175));
@@ -12,7 +33,7 @@ describe('checkGlyphs', () => {
     it('finds nothing wrong in a clean digits font apart from the missing space', () => {
         const issues = checkGlyphs([...DIGITS, glyph('dot', '.', 66, 175)], '0', 'source');
 
-        expect(issues.map((issue) => issue.level)).toEqual(['info']);
+        expect(issues.map((issue) => issue.level)).toEqual(['info', 'info']);
     });
 
     it('flags unmapped names, height and width differences, baselines and empty glyphs', () => {
@@ -34,7 +55,7 @@ describe('checkGlyphs', () => {
         expect(byText('No character')).toEqual(['x_big']);
         expect(byText('heights differ')).toEqual(['m']);
         expect(byText('different widths')).toEqual(['8']);
-        expect(byText('baselines')).toEqual(['9']);
+        expect(byText('off their line')).toEqual(['9']);
         expect(byText('transparent')).toEqual(['comma']);
     });
 
@@ -51,6 +72,94 @@ describe('checkGlyphs', () => {
 
         expect(unmapped('source')).toBe('warning');
         expect(unmapped('atlas')).toBe('error');
+    });
+
+    it('reports no alignment problem when round digits overshoot the flat ones (game-starter-pack numbers)', () => {
+        const starter = measured(150, {
+            0: 142,
+            1: 140,
+            2: 140,
+            3: 142,
+            4: 140,
+            5: 142,
+            6: 142,
+            7: 140,
+            8: 142,
+            9: 142,
+        });
+
+        expect(alignmentIssues(starter)).toEqual([]);
+    });
+
+    it('explains why flat digits look lower when nothing overshoots (3_power_sevens numbers)', () => {
+        const sevens = measured(150, {
+            0: 141,
+            1: 141,
+            2: 141,
+            3: 141,
+            4: 141,
+            5: 141,
+            6: 141,
+            7: 141,
+            8: 141,
+            9: 141,
+        });
+        const issues = alignmentIssues(sevens);
+
+        expect(issues.map((issue) => issue.level)).toEqual(['info']);
+        expect(checkGlyphs(sevens, '0', 'source').find((issue) => issue.level === 'info')?.message).toContain(
+            '1 2 4 7 can look a little lower',
+        );
+    });
+
+    it('names each digit that stands off its line (green-and-mean numbers)', () => {
+        const green = measured(420, { 0: 389, 1: 394, 2: 389, 3: 391, 4: 389, 5: 388, 6: 386, 7: 386, 8: 379, 9: 386 });
+
+        expect(alignmentIssues(green)[0]).toEqual({
+            level: 'warning',
+            glyphKeys: ['1', '8'],
+            details: ['1: 5px lower than 2 4 7', '8: 8px higher than 0 3 5 6 9'],
+        });
+    });
+
+    it('notes a round digit that ends on the flat line (dynasty_coin_10000 numbers)', () => {
+        const dynasty = measured(842, {
+            0: 806,
+            1: 793,
+            2: 792,
+            3: 804,
+            4: 792,
+            5: 805,
+            6: 803,
+            7: 792,
+            8: 806,
+            9: 792,
+        });
+
+        expect(alignmentIssues(dynasty)).toEqual([
+            {
+                level: 'info',
+                glyphKeys: ['9'],
+                details: ['9: 13px higher than 0 3 5 6 8, on the line of 1 2 4 7'],
+            },
+        ]);
+    });
+
+    it('gives every digit its offset from the flat-digit baseline', () => {
+        const starter = measured(150, {
+            0: 142,
+            1: 140,
+            2: 140,
+            3: 142,
+            4: 140,
+            5: 142,
+            6: 142,
+            7: 140,
+            8: 142,
+            9: 142,
+        });
+
+        expect(Object.fromEntries(digitBaselineOffsets(starter))).toMatchObject({ 0: 2, 1: 0, 2: 0, 5: 2 });
     });
 
     it('computes the ink baseline from the digits', () => {

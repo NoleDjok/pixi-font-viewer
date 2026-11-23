@@ -1,4 +1,4 @@
-import { INK_ALPHA_THRESHOLD, type IInkBox } from '../core';
+import { INK_ALPHA_THRESHOLD, SOLID_ALPHA_THRESHOLD, type IInkBox } from '../core';
 
 export interface IInkResult {
     ink: IInkBox | null;
@@ -53,6 +53,7 @@ export function measureInk(source: CanvasImageSource, x: number, y: number, widt
     let minY = canvas.height;
     let maxX = -1;
     let maxY = -1;
+    let solidMaxY = -1;
 
     for (let row = 0; row < canvas.height; row++) {
         for (let column = 0; column < canvas.width; column++) {
@@ -64,6 +65,10 @@ export function measureInk(source: CanvasImageSource, x: number, y: number, widt
                 minY = Math.min(minY, row);
                 maxY = Math.max(maxY, row);
             }
+
+            if (alpha > SOLID_ALPHA_THRESHOLD) {
+                solidMaxY = Math.max(solidMaxY, row);
+            }
         }
     }
 
@@ -72,7 +77,13 @@ export function measureInk(source: CanvasImageSource, x: number, y: number, widt
     }
 
     return {
-        ink: { left: minX, top: minY, right: canvas.width - 1 - maxX, bottom: canvas.height - 1 - maxY },
+        ink: {
+            left: minX,
+            top: minY,
+            right: canvas.width - 1 - maxX,
+            bottom: canvas.height - 1 - maxY,
+            solidBottom: canvas.height - 1 - (solidMaxY < 0 ? maxY : solidMaxY),
+        },
         empty: false,
     };
 }

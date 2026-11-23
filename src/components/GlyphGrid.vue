@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { describeChar, formatCodePoint, type IFontDescriptor, type IGlyphDescriptor, type IssueLevel } from '../core';
+import {
+    describeChar,
+    digitBaselineOffsets,
+    formatCodePoint,
+    solidBottomLine,
+    type IFontDescriptor,
+    type IGlyphDescriptor,
+    type IssueLevel,
+} from '../core';
 import { appendText } from '../store';
 import { GLYPH_GRID, LEVEL_ORDER } from './components.config';
 
@@ -20,6 +28,7 @@ const maxHeight = computed(() => Math.max(1, ...props.font.glyphs.map((glyph) =>
 const scale = computed(() => thumbHeight.value / maxHeight.value);
 const selected = computed(() => props.font.glyphs.find((glyph) => glyph.key === selectedKey.value) ?? null);
 const showsBaseline = computed(() => props.font.kind === 'glyphs' || props.font.kind === 'atlas');
+const digitOffsets = computed(() => digitBaselineOffsets(props.font.glyphs));
 
 const levelByKey = computed(() => {
     const levels = new Map<string, IssueLevel>();
@@ -100,6 +109,31 @@ function baselineStyle(glyph: IGlyphDescriptor): Record<string, string> | null {
     return { top: `${(baseline / glyph.height) * 100}%` };
 }
 
+function offsetLabel(offset: number): string {
+    const amount = round(Math.abs(offset));
+
+    if (amount === 0) {
+        return 'on line';
+    }
+
+    return `${offset > 0 ? '↓' : '↑'}${amount}px`;
+}
+
+function offsetPhrase(offset: number): string {
+    const amount = round(Math.abs(offset));
+
+    return amount === 0
+        ? 'on the line of 1 2 4 7'
+        : `${amount}px ${offset > 0 ? 'below' : 'above'} the line of 1 2 4 7`;
+}
+
+function bottomEdgeText(glyph: IGlyphDescriptor): string {
+    const line = `${round(solidBottomLine(glyph) ?? 0)}px from the top`;
+    const offset = digitOffsets.value.get(glyph.key);
+
+    return offset === undefined ? line : `${line}, ${offsetPhrase(offset)}`;
+}
+
 function round(value: number): number {
     return Math.round(value * 100) / 100;
 }
@@ -155,6 +189,13 @@ function cardLabel(glyph: IGlyphDescriptor): string {
                         <span class="glyph-card__char">{{ glyph.char === null ? '?' : describeChar(glyph.char) }}</span>
                         <span class="glyph-card__meta">{{ glyph.name }}</span>
                         <span class="glyph-card__meta">{{ round(glyph.width) }}×{{ round(glyph.height) }}</span>
+                        <span
+                            v-if="digitOffsets.has(glyph.key)"
+                            class="glyph-card__offset"
+                            :title="`Bottom edge ${offsetPhrase(digitOffsets.get(glyph.key) ?? 0)}`"
+                        >
+                            {{ offsetLabel(digitOffsets.get(glyph.key) ?? 0) }}
+                        </span>
                     </button>
                 </li>
             </ul>
@@ -171,6 +212,10 @@ function cardLabel(glyph: IGlyphDescriptor): string {
                     <dd>{{ round(selected.width) }} × {{ round(selected.height) }}</dd>
                     <dt>xadvance</dt>
                     <dd>{{ round(selected.xAdvance) }}</dd>
+                    <template v-if="solidBottomLine(selected) !== null">
+                        <dt>Bottom edge</dt>
+                        <dd>{{ bottomEdgeText(selected) }}</dd>
+                    </template>
                     <dt>Offset</dt>
                     <dd>x {{ selected.xOffset }}, y {{ selected.yOffset }}</dd>
                     <template v-if="selected.ink">

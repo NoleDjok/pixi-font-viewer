@@ -798,6 +798,12 @@ pre {
     font-size: 10px;
 }
 
+.glyph-card__offset {
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 10px;
+}
+
 .glyph-detail {
     flex: none;
     width: 260px;

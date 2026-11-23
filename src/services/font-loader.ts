@@ -464,11 +464,17 @@ function scaleInk(result: IInkResult | undefined, scale: number): IInkResult | u
         return result;
     }
 
-    const { left, top, right, bottom } = result.ink;
+    const { left, top, right, bottom, solidBottom } = result.ink;
 
     return {
         empty: result.empty,
-        ink: { left: left / scale, top: top / scale, right: right / scale, bottom: bottom / scale },
+        ink: {
+            left: left / scale,
+            top: top / scale,
+            right: right / scale,
+            bottom: bottom / scale,
+            solidBottom: solidBottom / scale,
+        },
     };
 }
 

@@ -1,4 +1,11 @@
-import { BASELINE_TOLERANCE_RATIO, MIN_BASELINE_TOLERANCE_PX } from './constants';
+import {
+    BASELINE_TOLERANCE_RATIO,
+    FLAT_BOTTOM_DIGITS,
+    MIN_BASELINE_TOLERANCE_PX,
+    MIN_DIGITS_IN_GROUP,
+    MIN_OVERSHOOT_RATIO,
+    ROUND_BOTTOM_DIGITS,
+} from './constants';
 import { builderOnlyGlyphNames, sdkGlyphNames } from './glyph-names';
 import type { IInkBox, IIssue } from './interfaces';
 import type { ICharCollision } from './synthetic-font';
@@ -10,6 +17,12 @@ export interface IGlyphCheckInput {
     height: number;
     ink: IInkBox | null;
     empty: boolean;
+}
+
+interface IMeasuredDigit {
+    key: string;
+    char: string;
+    line: number;
 }
 
 const DIGIT = /^[0-9]$/;
@@ -32,7 +45,7 @@ export function checkGlyphs(
         ...checkUnmapped(glyphs, stage),
         ...checkHeights(glyphs, reference),
         ...checkDigitWidths(glyphs),
-        ...checkBaselines(glyphs, reference),
+        ...checkDigitAlignment(glyphs, reference),
         ...checkEmpty(glyphs),
         ...checkLetterCase(glyphs),
         ...checkSpace(glyphs),
@@ -50,11 +63,45 @@ export function collisionIssues(collisions: readonly ICharCollision[], stage: 'b
     }));
 }
 
-export function inkBaseline(glyphs: readonly IGlyphCheckInput[]): number | null {
-    const digits = glyphs.filter((glyph) => isDigit(glyph) && glyph.ink && !glyph.empty);
-    const pool = digits.length > 0 ? digits : glyphs.filter((glyph) => glyph.ink && !glyph.empty);
+export function solidBottomLine(glyph: IGlyphCheckInput): number | null {
+    return glyph.ink && !glyph.empty ? glyph.height - glyph.ink.solidBottom : null;
+}
 
-    return median(pool.flatMap((glyph) => (glyph.ink ? [glyph.height - glyph.ink.bottom] : [])));
+export function inkBaseline(glyphs: readonly IGlyphCheckInput[]): number | null {
+    const flatDigits = glyphs.filter((glyph) => glyph.char !== null && FLAT_BOTTOM_DIGITS.includes(glyph.char));
+
+    for (const pool of [flatDigits, glyphs.filter(isDigit), glyphs]) {
+        const lines = pool.flatMap((glyph) => {
+            const line = solidBottomLine(glyph);
+
+            return line === null ? [] : [line];
+        });
+
+        if (lines.length > 0) {
+            return median(lines);
+        }
+    }
+
+    return null;
+}
+
+export function digitBaselineOffsets(glyphs: readonly IGlyphCheckInput[]): Map<string, number> {
+    const baseline = inkBaseline(glyphs);
+    const offsets = new Map<string, number>();
+
+    if (baseline === null) {
+        return offsets;
+    }
+
+    for (const glyph of glyphs.filter(isDigit)) {
+        const line = solidBottomLine(glyph);
+
+        if (line !== null) {
+            offsets.set(glyph.key, line - baseline);
+        }
+    }
+
+    return offsets;
 }
 
 function checkUnmapped(glyphs: readonly IGlyphCheckInput[], stage: GlyphNameStage): IIssue[] {
@@ -138,33 +185,123 @@ function checkDigitWidths(glyphs: readonly IGlyphCheckInput[]): IIssue[] {
     ];
 }
 
-function checkBaselines(glyphs: readonly IGlyphCheckInput[], reference: IGlyphCheckInput | null): IIssue[] {
-    const digits = glyphs.filter((glyph) => isDigit(glyph) && glyph.ink && !glyph.empty);
-    const baseline = inkBaseline(digits);
+function checkDigitAlignment(glyphs: readonly IGlyphCheckInput[], reference: IGlyphCheckInput | null): IIssue[] {
+    const height = reference?.height ?? Math.max(0, ...glyphs.map((glyph) => glyph.height));
+    const tolerance = Math.max(MIN_BASELINE_TOLERANCE_PX, Math.round(height * BASELINE_TOLERANCE_RATIO));
+    const flat = measuredDigits(glyphs, FLAT_BOTTOM_DIGITS);
+    const round = measuredDigits(glyphs, ROUND_BOTTOM_DIGITS);
+    const flatLine = groupLine(flat);
+    const roundLine = groupLine(round);
+    const outliers: IMeasuredDigit[] = [];
+    const outlierDetails: string[] = [];
+    const crossed: IMeasuredDigit[] = [];
+    const crossedDetails: string[] = [];
 
-    if (digits.length < 2 || baseline === null) {
+    for (const [group, line, otherLine, otherGroup] of [
+        [flat, flatLine, roundLine, round],
+        [round, roundLine, flatLine, flat],
+    ] as const) {
+        if (line === null) {
+            continue;
+        }
+
+        for (const digit of group) {
+            const offset = digit.line - line;
+
+            if (Math.abs(offset) <= tolerance) {
+                continue;
+            }
+
+            const peers = group.filter((item) => item !== digit).map((item) => item.char);
+            const relation = `${Math.abs(offset)}px ${offset > 0 ? 'lower' : 'higher'} than ${peers.join(' ')}`;
+
+            if (otherLine !== null && Math.abs(digit.line - otherLine) <= tolerance) {
+                crossed.push(digit);
+                crossedDetails.push(
+                    `${digit.char}: ${relation}, on the line of ${otherGroup.map((item) => item.char).join(' ')}`,
+                );
+            } else {
+                outliers.push(digit);
+                outlierDetails.push(`${digit.char}: ${relation}`);
+            }
+        }
+    }
+
+    const issues: IIssue[] = [];
+
+    if (outliers.length > 0) {
+        issues.push({
+            level: 'warning',
+            message:
+                `Digits off their line: the bottom edge is more than ${tolerance}px away from the other digits ` +
+                'with the same bottom shape (flat 1 2 4 7, round 0 3 5 6 8 9).',
+            glyphKeys: outliers.map((digit) => digit.key),
+            details: outlierDetails,
+        });
+    }
+
+    if (crossed.length > 0) {
+        issues.push({
+            level: 'info',
+            message: 'A digit ends on the line of the other bottom shape. Fine if its bottom is shaped that way.',
+            glyphKeys: crossed.map((digit) => digit.key),
+            details: crossedDetails,
+        });
+    }
+
+    return [...issues, ...checkOvershoot(flatLine, roundLine, height, tolerance)];
+}
+
+function checkOvershoot(
+    flatLine: number | null,
+    roundLine: number | null,
+    height: number,
+    tolerance: number,
+): IIssue[] {
+    if (flatLine === null || roundLine === null) {
         return [];
     }
 
-    const height = reference?.height ?? Math.max(...digits.map((glyph) => glyph.height));
-    const tolerance = Math.max(MIN_BASELINE_TOLERANCE_PX, Math.round(height * BASELINE_TOLERANCE_RATIO));
-    const offsets = digits.map((glyph) => ({ glyph, offset: glyph.height - (glyph.ink?.bottom ?? 0) - baseline }));
-    const outliers = offsets.filter((item) => Math.abs(item.offset) > tolerance);
+    const overshoot = roundLine - flatLine;
 
-    if (outliers.length === 0) {
+    if (overshoot < -tolerance) {
+        return [
+            {
+                level: 'warning',
+                message: `Round digits 0 3 5 6 8 9 stand ${-overshoot}px higher than flat digits 1 2 4 7.`,
+                details: [`flat digits end at ${flatLine}px, round digits at ${roundLine}px from the top`],
+            },
+        ];
+    }
+
+    if (overshoot >= height * MIN_OVERSHOOT_RATIO) {
         return [];
     }
 
     return [
         {
-            level: 'warning',
-            message: `Digits stand on different baselines (more than ${tolerance}px from the common one at ${baseline}px).`,
-            glyphKeys: outliers.map((item) => item.glyph.key),
-            details: outliers.map(
-                (item) => `${item.glyph.key}: ${item.offset > 0 ? 'lower' : 'higher'} by ${Math.abs(item.offset)}px`,
-            ),
+            level: 'info',
+            message:
+                `Round digits 0 3 5 6 8 9 end on the same line as flat digits 1 2 4 7 (${flatLine}px from the top). ` +
+                'That is exact, but a round bottom touches the line in one point, so 1 2 4 7 can look a little lower ' +
+                `next to them. Fonts usually let round digits go 1–2% of the height below the line ` +
+                `(${Math.round(height * 0.01)}–${Math.round(height * 0.02)}px here).`,
         },
     ];
+}
+
+function measuredDigits(glyphs: readonly IGlyphCheckInput[], digits: readonly string[]): IMeasuredDigit[] {
+    return glyphs.flatMap((glyph) => {
+        const line = solidBottomLine(glyph);
+
+        return glyph.char !== null && digits.includes(glyph.char) && line !== null
+            ? [{ key: glyph.key, char: glyph.char, line }]
+            : [];
+    });
+}
+
+function groupLine(group: readonly IMeasuredDigit[]): number | null {
+    return group.length >= MIN_DIGITS_IN_GROUP ? median(group.map((digit) => digit.line)) : null;
 }
 
 function checkEmpty(glyphs: readonly IGlyphCheckInput[]): IIssue[] {
