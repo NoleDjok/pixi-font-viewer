@@ -56,6 +56,9 @@ export const FONT_KIND_LABELS: Readonly<Record<FontKind, string>> = {
 
 export const INK_ALPHA_THRESHOLD = 8;
 export const SOLID_ALPHA_THRESHOLD = 128;
+export const SPECK_MAX_AREA_RATIO = 0.005;
+export const SPECK_MIN_PEAK_ALPHA = 64;
+export const MAX_LISTED_SPECKS = 3;
 export const BASELINE_TOLERANCE_RATIO = 0.01;
 export const MIN_BASELINE_TOLERANCE_PX = 1;
 export const MIN_OVERSHOOT_RATIO = 0.005;

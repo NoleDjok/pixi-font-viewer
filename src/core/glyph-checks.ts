@@ -1,13 +1,14 @@
 import {
     BASELINE_TOLERANCE_RATIO,
     FLAT_BOTTOM_DIGITS,
+    MAX_LISTED_SPECKS,
     MIN_BASELINE_TOLERANCE_PX,
     MIN_DIGITS_IN_GROUP,
     MIN_OVERSHOOT_RATIO,
     ROUND_BOTTOM_DIGITS,
 } from './constants';
 import { builderGlyphNames, sdkGlyphNames, suggestGlyphName } from './glyph-names';
-import type { IInkBox, IIssue } from './interfaces';
+import type { IInkBox, IIssue, ISpeck } from './interfaces';
 import type { ICharCollision } from './synthetic-font';
 
 export interface IGlyphCheckInput {
@@ -17,6 +18,7 @@ export interface IGlyphCheckInput {
     height: number;
     ink: IInkBox | null;
     empty: boolean;
+    specks?: readonly ISpeck[];
 }
 
 interface IMeasuredDigit {
@@ -49,6 +51,7 @@ export function checkGlyphs(
         ...checkDigitWidths(glyphs),
         ...checkDigitAlignment(glyphs, reference),
         ...checkEmpty(glyphs),
+        ...checkSpecks(glyphs),
         ...checkLetterCase(glyphs),
         ...checkSpace(glyphs),
     ];
@@ -354,6 +357,37 @@ function checkEmpty(glyphs: readonly IGlyphCheckInput[]): IIssue[] {
             glyphKeys: empty.map((glyph) => glyph.key),
         },
     ];
+}
+
+function checkSpecks(glyphs: readonly IGlyphCheckInput[]): IIssue[] {
+    const spotted = glyphs.filter((glyph) => (glyph.specks?.length ?? 0) > 0);
+
+    if (spotted.length === 0) {
+        return [];
+    }
+
+    return [
+        {
+            code: 'stray-pixels',
+            level: 'warning',
+            message: 'Some glyph images have stray pixels on the transparent background, apart from the glyph itself.',
+            fix:
+                'Erase them in the source image: the game shows them. Click the glyph and switch the loupe to ' +
+                'Alpha to find them. If they are part of the design (sparkles), ignore this.',
+            glyphKeys: spotted.map((glyph) => glyph.key),
+            details: spotted.map((glyph) => describeSpecks(glyph.key, glyph.specks ?? [])),
+        },
+    ];
+}
+
+function describeSpecks(key: string, specks: readonly ISpeck[]): string {
+    const places = specks
+        .slice(0, MAX_LISTED_SPECKS)
+        .map((speck) => `x ${speck.x}, y ${speck.y}`)
+        .join('; ');
+    const more = specks.length > MAX_LISTED_SPECKS ? ` and ${specks.length - MAX_LISTED_SPECKS} more` : '';
+
+    return `${key}: ${specks.length} spot(s) at ${places}${more}`;
 }
 
 function checkLetterCase(glyphs: readonly IGlyphCheckInput[]): IIssue[] {

@@ -1,9 +1,27 @@
-import { INK_ALPHA_THRESHOLD, SOLID_ALPHA_THRESHOLD, type IInkBox } from '../core';
+import { findSpecks, INK_ALPHA_THRESHOLD, SOLID_ALPHA_THRESHOLD, type IInkBox, type ISpeck } from '../core';
 
 export interface IInkResult {
     ink: IInkBox | null;
     empty: boolean;
+    specks: ISpeck[];
 }
+
+export type RgbColor = readonly [number, number, number];
+
+export interface IAlphaPalette {
+    faint: RgbColor;
+    partial: RgbColor;
+    solid: RgbColor;
+}
+
+export interface IFrame {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+}
+
+const OPAQUE = 255;
 
 export async function loadImage(url: string, label: string): Promise<HTMLImageElement> {
     const image = new Image();
@@ -44,7 +62,7 @@ export function measureInk(source: CanvasImageSource, x: number, y: number, widt
     const context = canvas.getContext('2d', { willReadFrequently: true });
 
     if (!context) {
-        return { ink: null, empty: false };
+        return { ink: null, empty: false, specks: [] };
     }
 
     context.drawImage(source, x, y, width, height, 0, 0, width, height);
@@ -73,7 +91,7 @@ export function measureInk(source: CanvasImageSource, x: number, y: number, widt
     }
 
     if (maxX < 0) {
-        return { ink: null, empty: true };
+        return { ink: null, empty: true, specks: [] };
     }
 
     return {
@@ -85,5 +103,48 @@ export function measureInk(source: CanvasImageSource, x: number, y: number, widt
             solidBottom: canvas.height - 1 - (solidMaxY < 0 ? maxY : solidMaxY),
         },
         empty: false,
+        specks: findSpecks(data, canvas.width, canvas.height),
     };
+}
+
+export function drawGlyphPixels(
+    canvas: HTMLCanvasElement,
+    source: CanvasImageSource,
+    frame: IFrame,
+    palette: IAlphaPalette | null,
+): void {
+    canvas.width = Math.max(1, frame.width);
+    canvas.height = Math.max(1, frame.height);
+    const context = canvas.getContext('2d', { willReadFrequently: palette !== null });
+
+    if (!context) {
+        return;
+    }
+
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(source, frame.x, frame.y, frame.width, frame.height, 0, 0, frame.width, frame.height);
+
+    if (!palette) {
+        return;
+    }
+
+    const image = context.getImageData(0, 0, canvas.width, canvas.height);
+    const { data } = image;
+
+    for (let offset = 0; offset < data.length; offset += 4) {
+        const alpha = data[offset + 3] ?? 0;
+
+        if (alpha === 0) {
+            continue;
+        }
+
+        const [red, green, blue] =
+            alpha <= INK_ALPHA_THRESHOLD ? palette.faint : alpha >= OPAQUE ? palette.solid : palette.partial;
+        data[offset] = red;
+        data[offset + 1] = green;
+        data[offset + 2] = blue;
+        data[offset + 3] = OPAQUE;
+    }
+
+    context.putImageData(image, 0, 0);
 }

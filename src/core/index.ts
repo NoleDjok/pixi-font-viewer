@@ -8,4 +8,5 @@ export * from './glyph-names';
 export * from './ingest';
 export * from './interfaces';
 export * from './paths';
+export * from './specks';
 export * from './synthetic-font';

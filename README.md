@@ -73,6 +73,9 @@ artists. An unknown file name gets a hint: `coma` → did you mean `comma`, `x_s
   away gets a warning with its offset in pixels. If round digits do not go below the flat ones, an info note explains
   why `1 2 4 7` can look lower (no optical overshoot). Every digit card shows its offset from the `1 2 4 7` line;
 - fully transparent glyphs, trimmed or rotated atlas frames;
+- stray pixels: visible spots (alpha > 25%) not connected to the glyph and smaller than 0.5% of it, marked in red on
+  the card and in the loupe. Edge softness is not judged automatically: shadows and glows make good fonts measure
+  anywhere from crisp to very soft, so the loupe is there to look at edges instead;
 - mixed letter case (`K` and `m`) and a missing space glyph.
 
 The **Text** panel lists every character of the sample text that the font does not have and marks it in the text.
@@ -83,7 +86,9 @@ Presets cover win amounts, every glyph of the font, digits and punctuation, Lati
 
 - **Preview**: hover a glyph to see its character, code point and size. Guides: text box and width limits, line
   height, baseline (BMFont `base`, or the bottom edge of `1 2 4 7` for glyph fonts), glyph boxes.
-- **Glyphs** tab: every glyph at the same scale with its canvas, ink bounds and baseline; click one for its numbers.
+- **Glyphs** tab: every glyph at the same scale with its canvas, ink bounds and baseline; click one for its numbers
+  and a pixel loupe (1–16×, no smoothing). The loupe's **Alpha** view paints opaque pixels grey, semi-transparent ones
+  magenta and almost invisible ones (alpha ≤ 3%) blue, so soft edges, halos and stray pixels stand out.
 - **Atlas** tab (atlas and BMFont): the page with glyph rectangles; hover for `x y w h`, offsets and advance.
 - **Metrics** tab: size, line height, base, pages, resolutions, kerning pairs.
 - **Compare**: renders a second font under the first with the same text and settings.

@@ -11,6 +11,8 @@ import {
 } from '../core';
 import { appendText } from '../store';
 import { GLYPH_GRID, LEVEL_ORDER } from './components.config';
+import GlyphLoupe from './GlyphLoupe.vue';
+import { speckStyle } from './speck-style';
 
 const props = defineProps<{ font: IFontDescriptor }>();
 
@@ -182,6 +184,12 @@ function cardLabel(glyph: IGlyphDescriptor): string {
                             <span class="glyph-card__sprite" :style="spriteStyle(glyph)"></span>
                             <span v-if="inkStyle(glyph)" class="glyph-card__ink" :style="inkStyle(glyph) ?? {}"></span>
                             <span
+                                v-for="(speck, index) in glyph.specks"
+                                :key="`speck-${index}`"
+                                class="glyph-card__speck"
+                                :style="speckStyle(speck, glyph.image)"
+                            ></span>
+                            <span
                                 v-if="baselineStyle(glyph)"
                                 class="glyph-card__baseline"
                                 :style="baselineStyle(glyph) ?? {}"
@@ -204,6 +212,7 @@ function cardLabel(glyph: IGlyphDescriptor): string {
                 <h3 class="glyph-detail__title">
                     {{ selected.char === null ? selected.name : describeChar(selected.char) }}
                 </h3>
+                <GlyphLoupe v-if="selected.image" :glyph="selected" />
                 <dl class="facts">
                     <dt>Character</dt>
                     <dd>{{ selected.char === null ? 'none' : formatCodePoint(selected.codePoint ?? 0) }}</dd>

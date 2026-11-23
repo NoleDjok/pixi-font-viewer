@@ -13,6 +13,7 @@ export type IssueCode =
     | 'empty'
     | 'letter-case'
     | 'no-space'
+    | 'stray-pixels'
     | 'packed-frames'
     | 'descriptor'
     | 'missing-page';
@@ -34,6 +35,14 @@ export interface IInkBox {
     right: number;
     bottom: number;
     solidBottom: number;
+}
+
+export interface ISpeck {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    pixels: number;
 }
 
 export interface IGlyphImageRef {
@@ -60,6 +69,7 @@ export interface IGlyphDescriptor {
     image: IGlyphImageRef | null;
     ink: IInkBox | null;
     empty: boolean;
+    specks: ISpeck[];
 }
 
 export interface IPageDescriptor {

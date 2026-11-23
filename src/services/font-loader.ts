@@ -287,6 +287,7 @@ async function loadBmFont(
                 : null,
             ink: null,
             empty: char.width === 0 || char.height === 0,
+            specks: [],
         };
     });
 
@@ -367,6 +368,7 @@ function syntheticDescriptor(
         height: glyph.height,
         ink: glyph.ink,
         empty: glyph.empty,
+        specks: glyph.specks,
     }));
 
     return {
@@ -419,6 +421,7 @@ function syntheticGlyph(
         image,
         ink: ink?.ink ?? null,
         empty: ink?.empty ?? false,
+        specks: ink?.specks ?? [],
     };
 }
 
@@ -474,6 +477,7 @@ function scaleInk(result: IInkResult | undefined, scale: number): IInkResult | u
 
     return {
         empty: result.empty,
+        specks: result.specks,
         ink: {
             left: left / scale,
             top: top / scale,
